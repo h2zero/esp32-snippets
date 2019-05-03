@@ -73,6 +73,9 @@ private:
 	bool          m_haveServices = false;    // Have we previously obtain the set of services from the remote server.
 	bool          m_isConnected = false;     // Are we currently connected.
 	bool		  m_deleteCallbacks = true;
+	//H2ZERO_MOD
+	bool		  m_waitingToConnect =false;
+	//END_H2ZERO_MOD
 
 	BLEClientCallbacks* m_pClientCallbacks = nullptr;
 	FreeRTOS::Semaphore m_semaphoreRegEvt        = FreeRTOS::Semaphore("RegEvt");

@@ -23,6 +23,7 @@ class BLERemoteService;
 class BLERemoteDescriptor;
 typedef void (*notify_callback)(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify);
 
+
 /**
  * @brief A model of a remote %BLE characteristic.
  */
@@ -45,7 +46,10 @@ public:
 	uint8_t     readUInt8();
 	uint16_t    readUInt16();
 	uint32_t    readUInt32();
-	void        registerForNotify(notify_callback _callback, bool notifications = true);
+//H2ZERO_MOD
+//	void        registerForNotify(notify_callback _callback, bool notifications = true);
+    bool        registerForNotify(notify_callback _callback, bool notifications = true);
+//END_H2ZERO_MOD
 	bool        writeValue(uint8_t* data, size_t length, bool response = false);
 	bool        writeValue(std::string newValue, bool response = false);
 	bool        writeValue(uint8_t newValue, bool response = false);
@@ -73,6 +77,10 @@ private:
 	FreeRTOS::Semaphore  m_semaphoreReadCharEvt      = FreeRTOS::Semaphore("ReadCharEvt");
 	FreeRTOS::Semaphore  m_semaphoreRegForNotifyEvt  = FreeRTOS::Semaphore("RegForNotifyEvt");
 	FreeRTOS::Semaphore  m_semaphoreWriteCharEvt     = FreeRTOS::Semaphore("WriteCharEvt");
+	//H2ZERO_MOD
+	FreeRTOS::Semaphore  m_semaphoreDescWriteEvt  = FreeRTOS::Semaphore("WriteDescEvt");
+	bool				 m_registeredForNotify = false;
+	//END_H2ZERO_MOD
 	std::string          m_value;
 	uint8_t 			 *m_rawData = nullptr;
 	notify_callback		 m_notifyCallback = nullptr;

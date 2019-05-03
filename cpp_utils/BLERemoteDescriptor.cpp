@@ -134,12 +134,18 @@ std::string BLERemoteDescriptor::toString() {
  * @param [in] length The length of the data to send.
  * @param [in] response True if we expect a response.
  */
-void BLERemoteDescriptor::writeValue(uint8_t* data, size_t length, bool response) {
+//H2ZERO_MOD
+//void BLERemoteDescriptor::writeValue(uint8_t* data, size_t length, bool response) {
+bool BLERemoteDescriptor::writeValue(uint8_t* data, size_t length, bool response) {
+//END_H2ZERO_MOD
 	ESP_LOGD(LOG_TAG, ">> writeValue: %s", toString().c_str());
 	// Check to see that we are connected.
 	if (!getRemoteCharacteristic()->getRemoteService()->getClient()->isConnected()) {
 		ESP_LOGE(LOG_TAG, "Disconnected");
-		throw BLEDisconnectedException();
+//H2ZERO_MOD
+		//throw BLEDisconnectedException();
+        return false;
+//END_H2ZERO_MOD
 	}
 
 	esp_err_t errRc = ::esp_ble_gattc_write_char_descr(
@@ -153,8 +159,14 @@ void BLERemoteDescriptor::writeValue(uint8_t* data, size_t length, bool response
 	);
 	if (errRc != ESP_OK) {
 		ESP_LOGE(LOG_TAG, "esp_ble_gattc_write_char_descr: %d", errRc);
+//H2ZERO_MOD
+        return false;
+//END_H2ZERO_MOD
 	}
 	ESP_LOGD(LOG_TAG, "<< writeValue");
+//H2ZERO_MOD
+    return true;
+//END_H2ZERO_MOD
 } // writeValue
 
 
@@ -163,19 +175,39 @@ void BLERemoteDescriptor::writeValue(uint8_t* data, size_t length, bool response
  * @param [in] newValue The data to send to the remote descriptor.
  * @param [in] response True if we expect a response.
  */
+
+//H2ZERO_MOD
+/*
 void BLERemoteDescriptor::writeValue(std::string newValue, bool response) {
 	writeValue((uint8_t*) newValue.data(), newValue.length(), response);
 } // writeValue
-
+*/
+bool BLERemoteDescriptor::writeValue(std::string newValue, bool response) {
+	if(writeValue((uint8_t*) newValue.data(), newValue.length(), response)){
+        return true;
+    }
+    return false;
+} // writeValue
+//END_H2ZERO_MOD
 
 /**
  * @brief Write a byte value to the Descriptor.
  * @param [in] The single byte to write.
  * @param [in] True if we expect a response.
  */
+
+//H2ZERO_MOD
+/*
 void BLERemoteDescriptor::writeValue(uint8_t newValue, bool response) {
 	writeValue(&newValue, 1, response);
 } // writeValue
-
+*/
+bool BLERemoteDescriptor::writeValue(uint8_t newValue, bool response) {
+	if(writeValue(&newValue, 1, response)){
+        return true;
+    }
+    return false;
+} // writeValue
+//END_H2ZERO_MOD
 
 #endif /* CONFIG_BT_ENABLED */

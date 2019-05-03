@@ -120,11 +120,14 @@ bool BLEClient::connect(BLEAdvertisedDevice* device) {
 bool BLEClient::connect(BLEAddress address, esp_ble_addr_type_t type) {
 	ESP_LOGD(LOG_TAG, ">> connect(%s)", address.toString().c_str());
 
-	clearServices();
+	//clearServices();
 	m_peerAddress = address;
 
 	// Perform the open connection request against the target BLE Server.
 	m_semaphoreOpenEvt.take("connect");
+	//H2ZERO_MOD
+	m_waitingToConnect = true;
+	//H2ZERO_MOD_END
 	esp_err_t errRc = ::esp_ble_gattc_open(
 		m_gattc_if,
 		*getPeerAddress().getNative(), // address
@@ -133,9 +136,11 @@ bool BLEClient::connect(BLEAddress address, esp_ble_addr_type_t type) {
 	);
 	if (errRc != ESP_OK) {
 		ESP_LOGE(LOG_TAG, "esp_ble_gattc_open: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
+		//H2ZERO_MOD
+		m_waitingToConnect = false;
+		//H2ZERO_MOD_END
 		return false;
 	}
-
 	uint32_t rc = m_semaphoreOpenEvt.wait("connect");   // Wait for the connection to complete.
 	ESP_LOGD(LOG_TAG, "<< connect(), rc=%d", rc==ESP_GATT_OK);
 	return rc == ESP_GATT_OK;
@@ -190,12 +195,23 @@ void BLEClient::gattClientEventHandler(
 		// - uint16_t          conn_id
 		// - esp_bd_addr_t     remote_bda
 		case ESP_GATTC_DISCONNECT_EVT: {
-			ESP_LOGE(__func__, "disconnect event, reason: %d, connId: %d, my connId: %d, my IF: %d, gattc_if: %d", (int)evtParam->disconnect.reason, evtParam->disconnect.conn_id, getConnId(), getGattcIf(), gattc_if);
+			//H2ZERO_MOD
 			if(m_gattc_if != gattc_if)
 				break;
-			m_semaphoreOpenEvt.give(evtParam->disconnect.reason);
 			if(!m_isConnected)
 				break;
+			ESP_LOGE(__func__, "disconnect event, reason: %d, connId: %d, my connId: %d, my IF: %d, gattc_if: %d", (int)evtParam->disconnect.reason, evtParam->disconnect.conn_id, getConnId(), getGattcIf(), gattc_if);
+			//if(m_gattc_if != gattc_if)
+			//	break;
+			//m_semaphoreOpenEvt.give(evtParam->disconnect.reason);
+			m_semaphoreOpenEvt.give(1);
+			m_semaphoreSearchCmplEvt.give(1);
+			for (auto &myPair : m_servicesMap) {
+			   myPair.second->gattClientEventHandler(event, gattc_if, evtParam);
+			}
+			//if(!m_isConnected)
+			//	break;
+			//END_H2ZERO_MOD
 			// If we receive a disconnect event, set the class flag that indicates that we are
 			// no longer connected.
 			esp_ble_gattc_close(m_gattc_if, m_conn_id);
@@ -257,8 +273,13 @@ void BLEClient::gattClientEventHandler(
 		case ESP_GATTC_CONNECT_EVT: {
 			if(m_gattc_if != gattc_if)
 				break;
+			//H2ZERO_MOD
+			if(!m_waitingToConnect)
+				break;
+			m_waitingToConnect=false;
+			//END_H2ZERO_MOD
 			m_conn_id = evtParam->connect.conn_id;
-			BLEDevice::updatePeerDevice(this, true, m_gattc_if);
+		//	BLEDevice::updatePeerDevice(this, true, m_gattc_if);
 			esp_err_t errRc = esp_ble_gattc_send_mtu_req(gattc_if, evtParam->connect.conn_id);
 			if (errRc != ESP_OK) {
 				ESP_LOGE(LOG_TAG, "esp_ble_gattc_send_mtu_req: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
@@ -331,10 +352,16 @@ void BLEClient::gattClientEventHandler(
 	} // Switch
 
 	// Pass the request on to all services.
-	for (auto &myPair : m_servicesMap) {
-	   myPair.second->gattClientEventHandler(event, gattc_if, evtParam);
+//H2ZERO_MOD
+	if(event != ESP_GATTC_DISCONNECT_EVT/* && m_gattc_if == gattc_if*/){
+		for (auto &myPair : m_servicesMap) {
+		   myPair.second->gattClientEventHandler(event, gattc_if, evtParam);
+		}
 	}
-
+//	for (auto &myPair : m_servicesMap) {
+//	   myPair.second->gattClientEventHandler(event, gattc_if, evtParam);
+//	}
+//END_H2ZERO_MOD
 } // gattClientEventHandler
 
 

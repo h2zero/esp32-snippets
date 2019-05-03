@@ -31,10 +31,13 @@ public:
 	uint16_t    readUInt16(void);
 	uint32_t    readUInt32(void);
 	std::string toString(void);
-	void        writeValue(uint8_t* data, size_t length, bool response = false);
+/*	void        writeValue(uint8_t* data, size_t length, bool response = false);
 	void        writeValue(std::string newValue, bool response = false);
 	void        writeValue(uint8_t newValue, bool response = false);
-
+*/
+	bool        writeValue(uint8_t* data, size_t length, bool response = false);
+	bool        writeValue(std::string newValue, bool response = false);
+	bool        writeValue(uint8_t newValue, bool response = false);
 
 private:
 	friend class BLERemoteCharacteristic;

@@ -66,7 +66,7 @@ uint32_t FreeRTOS::getTimeSinceStart() {
  * @return The value associated with the semaphore.
  */
 uint32_t FreeRTOS::Semaphore::wait(std::string owner) {
-	ESP_LOGV(LOG_TAG, ">> wait: Semaphore waiting: %s for %s", toString().c_str(), owner.c_str());
+	ESP_LOGD(LOG_TAG, ">> wait: Semaphore waiting: %s for %s", toString().c_str(), owner.c_str());
 
 	if (m_usePthreads) {
 		pthread_mutex_lock(&m_pthread_mutex);
@@ -80,7 +80,7 @@ uint32_t FreeRTOS::Semaphore::wait(std::string owner) {
 		xSemaphoreGive(m_semaphore);
 	}
 
-	ESP_LOGV(LOG_TAG, "<< wait: Semaphore released: %s", toString().c_str());
+	ESP_LOGD(LOG_TAG, "<< wait: Semaphore released: %s", toString().c_str());
 	return m_value;
 } // wait
 
@@ -90,6 +90,7 @@ FreeRTOS::Semaphore::Semaphore(std::string name) {
 	if (m_usePthreads) {
 		pthread_mutex_init(&m_pthread_mutex, nullptr);
 	} else {
+		//m_semaphore = xSemaphoreCreateMutex();
 		m_semaphore = xSemaphoreCreateBinary();
 		xSemaphoreGive(m_semaphore);
 	}
@@ -114,9 +115,9 @@ FreeRTOS::Semaphore::~Semaphore() {
  * The Semaphore is given.
  */
 void FreeRTOS::Semaphore::give() {
-	ESP_LOGV(LOG_TAG, "Semaphore giving: %s", toString().c_str());
+	ESP_LOGD(LOG_TAG, "Semaphore giving: %s", toString().c_str());
 	m_owner = std::string("<N/A>");
-	
+
 	if (m_usePthreads) {
 		pthread_mutex_unlock(&m_pthread_mutex);
 	} else {

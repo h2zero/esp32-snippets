@@ -77,6 +77,11 @@ private:
 	BLEScanResults                m_scanResults;
 	bool                          m_wantDuplicates;
 	void                        (*m_scanCompleteCB)(BLEScanResults scanResults);
+
+	//H2ZERO_MOD
+	bool						  m_stopComplete = true;
+	//END_H2ZERO_MOD
+
 }; // BLEScan
 
 #endif /* CONFIG_BT_ENABLED */

@@ -77,6 +77,11 @@ void BLEScan::handleGAPEvent(
 				case ESP_GAP_SEARCH_INQ_CMPL_EVT: {
 					ESP_LOGW(LOG_TAG, "ESP_GAP_SEARCH_INQ_CMPL_EVT");
 					m_stopped = true;
+
+					//H2ZERO_MOD
+					m_stopComplete = true;
+					//END_H2ZERO_MOD
+
 					m_semaphoreScanEnd.give();
 					if (m_scanCompleteCB != nullptr) {
 						m_scanCompleteCB(m_scanResults);
@@ -142,7 +147,12 @@ void BLEScan::handleGAPEvent(
 
 			break;
 		} // ESP_GAP_BLE_SCAN_RESULT_EVT
-
+		//H2ZERO_MOD
+		case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT: {
+		    m_stopComplete = true;
+		    break;
+		}
+		//H2ZERO_MOD_END
 		default: {
 			break;
 		} // default
@@ -204,6 +214,14 @@ void BLEScan::setWindow(uint16_t windowMSecs) {
 bool BLEScan::start(uint32_t duration, void (*scanCompleteCB)(BLEScanResults), bool is_continue) {
 	ESP_LOGD(LOG_TAG, ">> start(duration=%d)", duration);
 
+	//H2ZERO_MOD
+	if(!m_stopComplete) {
+		m_stopped = false;
+		ESP_LOGE(LOG_TAG, "Scan still Running - get events");
+		return true;
+	}
+	//END_H2ZERO_MOD
+
 	m_semaphoreScanEnd.take(std::string("start"));
 	m_scanCompleteCB = scanCompleteCB;                  // Save the callback to be invoked when the scan completes.
 
@@ -233,6 +251,10 @@ bool BLEScan::start(uint32_t duration, void (*scanCompleteCB)(BLEScanResults), b
 	}
 
 	m_stopped = false;
+
+	//H2ZERO_MOD
+	m_stopComplete = false;
+	//END_H2ZERO_MOD
 
 	ESP_LOGD(LOG_TAG, "<< start()");
 	return true;

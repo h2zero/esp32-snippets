@@ -196,8 +196,10 @@ void BLERemoteCharacteristic::gattClientEventHandler(esp_gattc_cb_event_t event,
 			} else {
 				m_value = "";
 			}
-
-			m_semaphoreReadCharEvt.give();
+			//H2ZERO_MOD
+			//m_semaphoreReadCharEvt.give();
+			m_semaphoreReadCharEvt.give(evtParam->read.status);
+			//END_H2ZERO_MOD
 			break;
 		} // ESP_GATTC_READ_CHAR_EVT
 
@@ -233,16 +235,35 @@ void BLERemoteCharacteristic::gattClientEventHandler(esp_gattc_cb_event_t event,
 		// - esp_gatt_status_t status
 		// - uint16_t          conn_id
 		// - uint16_t          handle
+
 		case ESP_GATTC_WRITE_CHAR_EVT: {
+
 			// Determine if this event is for us and, if not, pass onwards.
 			if (evtParam->write.handle != getHandle()) break;
 
 			// There is nothing further we need to do here.  This is merely an indication
 			// that the write has completed and we can unlock the caller.
-			m_semaphoreWriteCharEvt.give();
+			m_semaphoreWriteCharEvt.give(evtParam->write.status);
 			break;
 		} // ESP_GATTC_WRITE_CHAR_EVT
 
+		case ESP_GATTC_WRITE_DESCR_EVT: {
+			BLERemoteDescriptor* desc = getDescriptor(BLEUUID((uint16_t)0x2902));
+			if(desc == nullptr) break;
+			if(evtParam->write.handle != desc->getHandle()) break;
+
+			//m_semaphoreRegForNotifyEvt.give(evtParam->write.status);
+			m_semaphoreDescWriteEvt.give(evtParam->write.status);
+			break;
+		}
+
+		case ESP_GATTC_DISCONNECT_EVT: {
+			m_semaphoreReadCharEvt.give(1);
+			m_semaphoreRegForNotifyEvt.give(1);
+			m_semaphoreDescWriteEvt.give(1);
+			m_semaphoreWriteCharEvt.give(1);
+			break;
+		}
 
 		default:
 			break;
@@ -407,7 +428,10 @@ std::string BLERemoteCharacteristic::readValue() {
 	// Check to see that we are connected.
 	if (!getRemoteService()->getClient()->isConnected()) {
 		ESP_LOGE(LOG_TAG, "Disconnected");
-		throw BLEDisconnectedException();
+//H2ZERO_MOD
+		//throw BLEDisconnectedException();
+		return "";
+//END_H2ZERO_MOD
 	}
 
 	m_semaphoreReadCharEvt.take("readValue");
@@ -428,8 +452,14 @@ std::string BLERemoteCharacteristic::readValue() {
 
 	// Block waiting for the event that indicates that the read has completed.  When it has, the std::string found
 	// in m_value will contain our data.
-	m_semaphoreReadCharEvt.wait("readValue");
-
+//H2ZERO_MOD
+	//m_semaphoreReadCharEvt.wait("readValue");
+	errRc = m_semaphoreReadCharEvt.wait("readValue");
+	if(errRc != ESP_OK) {
+		ESP_LOGE(LOG_TAG, "ESP_GATTC_READ_CHAR_EVT: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
+		return "";
+	}
+//END_H2ZERO_MOD
 	ESP_LOGD(LOG_TAG, "<< readValue(): length: %d", m_value.length());
 	return m_value;
 } // readValue
@@ -441,6 +471,9 @@ std::string BLERemoteCharacteristic::readValue() {
  * unregistering a notification.
  * @return N/A.
  */
+
+//H2ZERO_MOD
+/*
 void BLERemoteCharacteristic::registerForNotify(notify_callback notifyCallback, bool notifications) {
 	ESP_LOGD(LOG_TAG, ">> registerForNotify(): %s", toString().c_str());
 
@@ -486,6 +519,85 @@ void BLERemoteCharacteristic::registerForNotify(notify_callback notifyCallback, 
 
 	ESP_LOGD(LOG_TAG, "<< registerForNotify()");
 } // registerForNotify
+*/
+
+bool BLERemoteCharacteristic::registerForNotify(notify_callback notifyCallback, bool notifications) {
+	ESP_LOGD(LOG_TAG, ">> registerForNotify(): %s", toString().c_str());
+
+	m_notifyCallback = notifyCallback;   // Save the notification callback.
+
+    uint8_t val[] = {0x01, 0x00};
+
+    esp_err_t errRc;
+
+    BLERemoteDescriptor* desc = getDescriptor(BLEUUID((uint16_t)0x2902));
+    if(desc == nullptr) 
+        return false;
+if(!m_registeredForNotify){
+    m_semaphoreRegForNotifyEvt.take("registerForNotify");
+
+	if (notifyCallback != nullptr) {   // If we have a callback function, then this is a registration.
+		errRc = ::esp_ble_gattc_register_for_notify(
+			m_pRemoteService->getClient()->getGattcIf(),
+			*m_pRemoteService->getClient()->getPeerAddress().getNative(),
+			getHandle()
+		);
+		
+		if(!notifications) val[0] = 0x02;
+		
+	} // End Register
+	else {   // If we weren't passed a callback function, then this is an unregistration.
+		errRc = ::esp_ble_gattc_unregister_for_notify(
+			m_pRemoteService->getClient()->getGattcIf(),
+			*m_pRemoteService->getClient()->getPeerAddress().getNative(),
+			getHandle()
+		);
+
+		val[0] = 0x00;
+	} // End Unregister
+
+    if (errRc != ESP_OK) {
+		ESP_LOGE(LOG_TAG, "esp_ble_gattc_(un)register_for_notify: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
+		m_semaphoreRegForNotifyEvt.give();
+        return false;
+	}
+
+    errRc = m_semaphoreRegForNotifyEvt.wait("registerForNotify");
+    if (errRc != ESP_OK) {
+		ESP_LOGE(LOG_TAG, "ESP_GATTC_WRITE_CHAR_DESC: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
+		return false;
+	}
+
+    m_registeredForNotify = true;
+}
+
+	if(notifyCallback != nullptr){
+		if(!notifications){
+			val[0] = 0x02;
+		}
+	}
+	else if (notifyCallback == nullptr){
+		val[0] = 0x00;
+	}
+
+    m_semaphoreDescWriteEvt.take("registerForNotify");
+
+    if(!desc->writeValue(val, 2, true)){
+    	m_semaphoreDescWriteEvt.give();
+        return false;
+    }
+
+    errRc = m_semaphoreDescWriteEvt.wait("registerForNotify");
+    if (errRc != ESP_OK) {
+		ESP_LOGE(LOG_TAG, "ESP_GATTC_WRITE_CHAR_DESC: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
+		return false;
+	}
+
+	ESP_LOGD(LOG_TAG, "<< registerForNotify()");
+
+    return true;
+} // registerForNotify
+//END_H2ZERO_MOD
 
 
 /**
@@ -557,9 +669,11 @@ bool BLERemoteCharacteristic::writeValue(uint8_t* data, size_t length, bool resp
 	if (!getRemoteService()->getClient()->isConnected()) {
 		ESP_LOGE(LOG_TAG, "Disconnected");
 		return false;
+        //throw BLEDisconnectedException();
 	}
 
 	m_semaphoreWriteCharEvt.take("writeValue");
+
 	// Invoke the ESP-IDF API to perform the write.
 	esp_err_t errRc = ::esp_ble_gattc_write_char(
 		m_pRemoteService->getClient()->getGattcIf(),
@@ -573,11 +687,20 @@ bool BLERemoteCharacteristic::writeValue(uint8_t* data, size_t length, bool resp
 
 	if (errRc != ESP_OK) {
 		ESP_LOGE(LOG_TAG, "esp_ble_gattc_write_char: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
+//H2ZERO_MOD
+		m_semaphoreWriteCharEvt.give();
+//END_H2ZERO_MOD
 		return false;
 	}
+//H2ZERO_MOD
+//	m_semaphoreWriteCharEvt.wait("writeValue");
 
-	m_semaphoreWriteCharEvt.wait("writeValue");
-
+    errRc = m_semaphoreWriteCharEvt.wait("writeValue");
+    if (errRc != ESP_OK) {
+		ESP_LOGE(LOG_TAG, "ESP_GATTC_WRITE_CHAR_EVT: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
+		return false;
+	}
+ //END_H2ZERO_MOD
 	ESP_LOGD(LOG_TAG, "<< writeValue");
 	return true;
 } // writeValue

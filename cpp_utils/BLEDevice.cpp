@@ -23,6 +23,7 @@
 #include <sstream>             // Part of C++ Standard library
 #include <iomanip>             // Part of C++ Standard library
 
+
 #include "BLEDevice.h"
 #include "BLEClient.h"
 #include "BLEUtils.h"
@@ -175,7 +176,7 @@ gatts_event_handler BLEDevice::m_customGattsHandler = nullptr;
 	if(m_customGattcHandler != nullptr) {
 		m_customGattcHandler(event, gattc_if, param);
 	}
-
+	//ESP_LOGE(LOG_TAG, "gattClientEventHandler HWM: %d", uxTaskGetStackHighWaterMark(NULL));
 
 } // gattClientEventHandler
 
@@ -575,7 +576,7 @@ BLEClient* BLEDevice::getClientByGattIf(uint16_t conn_id) {
 }
 
 void BLEDevice::updatePeerDevice(void* peer, bool _client, uint16_t conn_id) {
-	ESP_LOGD(LOG_TAG, "update conn_id: %d, GATT role: %s", conn_id, _client? "client":"server");
+	ESP_LOGE(LOG_TAG, "update conn_id: %d, GATT role: %s", conn_id, _client? "client":"server");
 	std::map<uint16_t, conn_status_t>::iterator it = m_connectedClientsMap.find(ESP_GATT_IF_NONE);
 	if (it != m_connectedClientsMap.end()) {
 		std::swap(m_connectedClientsMap[conn_id], it->second);
